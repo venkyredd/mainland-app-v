@@ -2,30 +2,38 @@ name: Deploy to S3 & Invalidate CloudFront
 
 on:
   push:
-    branches: [master]  # Trigger on push to main branch
+    branches:
+      - master  # Trigger on push to the master branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    # Step 1: Checkout repository code
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up OIDC credentials for AWS
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume: arn:aws:iam::011528270926:role/GitHubS3DeployRole  # Role ARN
-          role-session-name: github-actions-session
-          aws-region: us-east-2  # Your AWS region
-          web-identity-token-file: ${{ github.event.pull_request.head.sha }}  # OIDC token
+    # Step 2: Set up OIDC-based AWS credentials (no need for secrets)
+    - name: Configure AWS credentials using OIDC
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: arn:aws:iam::011528270926:role/GitHubS3DeployRole
+        aws-region: us-east-2  # Ensure this matches your S3 region
 
-      - name: Upload files to S3
-        run: |
-          aws s3 sync ./ s3://v-m-1/ --delete  # Sync files to your S3 bucket
+    # Step 3: Sync files to S3, excluding unnecessary files/folders
+    - name: Sync files to S3
+      run: |
+        aws s3 sync . s3://v-m-1 --delete \
+          --exclude ".git/*" \
+          --exclude ".github/*" \
+          --exclude "node_modules/*" \
+          --exclude "README.md"  # Modify as per your use case
 
-      - name: Invalidate CloudFront Cache
-        run: |
-          aws cloudfront create-invalidation \
-            --distribution-id E3V90WLAG3KLIP \
-            --paths "/*"  # Invalidate all files in CloudFront cache
+    # Step 4: Invalidate CloudFront cache to reflect changes immediately
+    - name: Invalidate CloudFront cache
+      run: |
+        aws cloudfront create-invalidation \
+          --distribution-id E3V90WLAG3KLIP \
+          --paths "/*"
+
