@@ -2,28 +2,30 @@ name: Deploy to S3 & Invalidate CloudFront
 
 on:
   push:
-    branches: [master]
+    branches: [main]  # Trigger on push to main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-2
+      - name: Set up OIDC credentials for AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::011528270926:role/GitHubS3DeployRole  # Role ARN
+          role-session-name: github-actions-session
+          aws-region: us-east-2  # Your AWS region
+          web-identity-token-file: ${{ github.event.pull_request.head.sha }}  # OIDC token
 
-    - name: Sync to S3
-      run: aws s3 sync . s3://${{ secrets.S3_BUCKET_NAME }} --delete
+      - name: Upload files to S3
+        run: |
+          aws s3 sync ./ s3://v-m-1/ --delete  # Sync files to your S3 bucket
 
-    - name: Invalidate CloudFront
-      run: |
-        aws cloudfront create-invalidation \
-          --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-          --paths "/*"
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id E3V90WLAG3KLIP \
+            --paths "/*"  # Invalidate all files in CloudFront cache
