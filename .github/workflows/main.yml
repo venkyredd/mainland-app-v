@@ -1,39 +1,33 @@
-name: Deploy to S3 & Invalidate CloudFront
+name: Auto Deploy to S3 + CloudFront
 
 on:
   push:
-    branches:
-      - master  # Trigger on push to the master branch
+    branches: [master]  
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Checkout repository code
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    # Step 2: Set up OIDC-based AWS credentials (no need for secrets)
-    - name: Configure AWS credentials using OIDC
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::011528270926:role/GitHubS3DeployRole
-        aws-region: us-east-2  # Ensure this matches your S3 region
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
 
-    # Step 3: Sync files to S3, excluding unnecessary files/folders
-    - name: Sync files to S3
-      run: |
-        aws s3 sync . s3://v-m-1 --delete \
-          --exclude ".git/*" \
-          --exclude ".github/*" \
-          --exclude "node_modules/*" \
-          --exclude "README.md"  # Modify as per your use case
+      - name: Upload files to S3
+        run: |
+          aws s3 sync . s3://v-m-1 \
+            --delete \
+            --exclude ".git/*" \
+            --exclude ".github/*"
 
-    # Step 4: Invalidate CloudFront cache to reflect changes immediately
-    - name: Invalidate CloudFront cache
-      run: |
-        aws cloudfront create-invalidation \
-          --distribution-id E3V90WLAG3KLIP \
-          --paths "/*"
-
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id E3V90WLAG3KLIP \
+            --paths "/*"
